@@ -1,0 +1,363 @@
+openapi: 3.0.3
+
+info:
+  title: Storix API
+  description: Backend pre správu skladu — produkty, pohyby, dashboard.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:3000/api
+    description: Lokálny vývojový server
+
+paths:
+
+  /products:
+    get:
+      summary: Vráti zoznam produktov
+      tags: [Produkty]
+      parameters:
+        - in: query
+          name: search
+          schema: { type: string }
+          description: Vyhľadávanie v názve (case-insensitive)
+        - in: query
+          name: belowMin
+          schema: { type: string, enum: [true, false] }
+          description: Len produkty pod minimálnou zásobou
+        - in: query
+          name: aboveMax
+          schema: { type: string, enum: [true, false] }
+          description: Len produkty nad maximálnou zásobou
+      responses:
+        '200':
+          description: Zoznam produktov
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  itemList:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+    post:
+      summary: Vytvorí nový produkt
+      tags: [Produkty]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, unit, minQuantity, maxQuantity]
+              properties:
+                name:
+                  type: string
+                  example: Skrutky M8
+                unit:
+                  type: string
+                  enum: [ks, kg, g, m, cm, l, ml, balenie]
+                  example: ks
+                minQuantity:
+                  type: number
+                  minimum: 0
+                  example: 50
+                maxQuantity:
+                  type: number
+                  minimum: 0
+                  example: 500
+      responses:
+        '201':
+          description: Produkt bol vytvorený
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          description: Neplatný vstup
+          content:
+            application/json:
+              example:
+                error: invalidDtoIn
+                message: DtoIn is not valid.
+        '409':
+          description: Produkt s týmto názvom už existuje
+          content:
+            application/json:
+              example:
+                error: productNameNotUnique
+                message: Product with given name already exists.
+
+  /products/{id}:
+    put:
+      summary: Aktualizuje produkt
+      tags: [Produkty]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:        { type: string, example: Skrutky M8 }
+                unit:        { type: string, enum: [ks, kg, g, m, cm, l, ml, balenie] }
+                minQuantity: { type: number, minimum: 0, example: 50 }
+                maxQuantity: { type: number, minimum: 0, example: 500 }
+      responses:
+        '200':
+          description: Produkt bol aktualizovaný
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          description: Neplatný vstup
+        '404':
+          description: Produkt neexistuje
+        '409':
+          description: Názov už existuje
+    delete:
+      summary: Zmaže produkt (aj všetky jeho pohyby)
+      tags: [Produkty]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '204':
+          description: Produkt bol zmazaný
+        '404':
+          description: Produkt neexistuje
+    get:
+      summary: Vráti jeden produkt podľa id
+      tags: [Produkty]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Produkt nájdený
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '404':
+          description: Produkt neexistuje
+          content:
+            application/json:
+              example:
+                error: productDoesNotExist
+                message: Product with given id does not exist.
+
+  /dashboard:
+    get:
+      summary: Súhrnné štatistiky skladu
+      tags: [Dashboard]
+      responses:
+        '200':
+          description: Štatistiky skladu
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalProducts:
+                    type: integer
+                    example: 10
+                  belowMinCount:
+                    type: integer
+                    example: 2
+                  aboveMaxCount:
+                    type: integer
+                    example: 1
+                  recentMovements:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Movement'
+
+  /movements:
+    get:
+      summary: Vráti zoznam pohybov
+      tags: [Pohyby]
+      parameters:
+        - in: query
+          name: productId
+          schema: { type: integer }
+          description: Filtruj pohyby jedného produktu
+        - in: query
+          name: productName
+          schema: { type: string }
+          description: Vyhľadávanie v názve produktu (case-insensitive)
+        - in: query
+          name: type
+          schema: { type: string, enum: [prijem, vydaj] }
+          description: Filtruj podľa typu
+        - in: query
+          name: dateFrom
+          schema: { type: string, format: date }
+          description: Pohyby od dátumu (YYYY-MM-DD)
+        - in: query
+          name: dateTo
+          schema: { type: string, format: date }
+          description: Pohyby do dátumu (YYYY-MM-DD)
+        - in: query
+          name: sort
+          schema: { type: string, enum: [newest, oldest] }
+          description: Zoradenie (predvolene newest)
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1 }
+          description: Číslo stránky (predvolene 1)
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100 }
+          description: Počet na stránku (predvolene 20)
+      responses:
+        '200':
+          description: Zoznam pohybov
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  itemList:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Movement'
+    post:
+      summary: Vytvorí pohyb (príjem alebo výdaj)
+      tags: [Pohyby]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [productId, type, quantity]
+              properties:
+                productId: { type: integer, example: 1 }
+                type:      { type: string, enum: [prijem, vydaj], example: prijem }
+                quantity:  { type: number, exclusiveMinimum: 0, example: 100 }
+                note:      { type: string, maxLength: 1000, example: Dodávka od dodávateľa }
+      responses:
+        '201':
+          description: Pohyb bol vytvorený
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Movement'
+        '400':
+          description: Neplatný vstup alebo nedostatok zásob
+          content:
+            application/json:
+              examples:
+                insufficientStock:
+                  value:
+                    error: insufficientStock
+                    message: Insufficient stock for this operation.
+        '404':
+          description: Produkt neexistuje
+
+  /movements/{id}:
+    get:
+      summary: Vráti jeden pohyb podľa id
+      tags: [Pohyby]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Pohyb nájdený
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Movement'
+        '404':
+          description: Pohyb neexistuje
+          content:
+            application/json:
+              example:
+                error: movementDoesNotExist
+                message: Movement with given id does not exist.
+    put:
+      summary: Upraví note pohybu
+      tags: [Pohyby]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note: { type: string, maxLength: 1000, example: Opravená poznámka }
+      responses:
+        '200':
+          description: Pohyb bol aktualizovaný
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Movement'
+        '400':
+          description: Neplatný vstup
+        '404':
+          description: Pohyb neexistuje
+    delete:
+      summary: Zmaže pohyb a vráti zásoby späť
+      tags: [Pohyby]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '204':
+          description: Pohyb bol zmazaný
+        '400':
+          description: Zmazanie by spôsobilo záporné zásoby
+          content:
+            application/json:
+              example:
+                error: insufficientStock
+                message: Deleting this movement would cause negative stock.
+        '404':
+          description: Pohyb neexistuje
+
+components:
+  schemas:
+    Product:
+      type: object
+      properties:
+        id:              { type: integer, example: 1 }
+        name:            { type: string, example: Skrutky M8 }
+        unit:            { type: string, example: ks }
+        minQuantity:     { type: number, example: 50 }
+        maxQuantity:     { type: number, example: 500 }
+        currentQuantity: { type: number, example: 0 }
+        createdAt:       { type: string, format: date-time }
+        updatedAt:       { type: string, format: date-time }
+    Movement:
+      type: object
+      properties:
+        id:          { type: integer, example: 1 }
+        productId:   { type: integer, example: 1 }
+        productName: { type: string, example: Skrutky M8 }
+        type:        { type: string, example: prijem }
+        quantity:    { type: number, example: 100 }
+        note:        { type: string, example: Dodávka od dodávateľa }
+        createdAt:   { type: string, format: date-time }
+        updatedAt:   { type: string, format: date-time }

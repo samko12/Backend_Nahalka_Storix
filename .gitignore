@@ -1,0 +1,4 @@
+node_modules/
+storix.db
+.env
+*.log
